@@ -35,73 +35,34 @@ int foo(int *p)
 ```
 
 ## Using analysis summaries in disconnected mode
+We can use analysis summaries directly in `cov-run-desktop` without first uploading and then downloading them from the Coverity Connect server. This allows to use analysis summaries, and thus accurate incremental analysis, even when using `cov-run-desktop` in disconnected mode.
+
+### Step 1: Perform full analysis and generate analysis summaries
 ```
 git clone https://github.com/ioquake/ioq3
 git checkout 6387c33
 cov-build --dir idir-6387c33 make
 cov-analyze --dir idir-6387c33 --strip-path `pwd`
-# Copy analysis summaries
+```
+
+### Step 2: Copy analysis summaries into the folder where cov-run-desktop looks for them
+```
 mkdir idir-6387c33/emit/desktop-cache
 cp idir-6387c33/output/exported-summaries/summaries idir-6387c33/emit/desktop-cache
+```
+
+### Step 3: Perform incremental analysis
+Since the analysis summaries are in the `desktop-cache` folder, `cov-run-desktop` will automatically pick them up.
+```
 git checkout 70d07d9
 cov-run-desktop --disconnected --dir idir-6387c33 code/game/g_combat.c
 ```
 
-<details>
- <summary>Output without analysis summaries</summary>
-
+Note the differences in the console output when analysis summaries are not found
 ```
-cov-run-desktop --disconnected --dir idir-6387c33 code/game/g_combat.c
-Coverity Desktop Analysis version 2022.9.1 on Linux 5.15.0-53-generic x86_64
-cov-run-desktop operating in disconnected mode due to user request.
-Selected 1 translation unit for analysis:
-* code/game/g_combat.c
-
-[STATUS] Parsing source files...
-[STATUS] Analyzing...
-[WARNING] The checker "ARRAY_VS_SINGLETON" was disabled because it requires summaries.
-[WARNING] The checker "CHECKED_RETURN" was disabled because it requires summaries.
-[WARNING] The checker "NULL_RETURNS" was disabled because it requires summaries.
-[WARNING] The checker "MISSING_MOVE_ASSIGNMENT" was disabled because it requires summaries.
 [WARNING] Some summaries were not available because of disconnected operation.
-Operating in single-file mode.
-This may affect results.
-
-Detected 3 defect occurrences that pass the filter criteria.
-
-code/game/g_combat.c:455:6: CID (unavailable; MK=790a8c7de09fedb2cca816716d4f3183) (#1 of 1):
-  Type: Dereference before null check (REVERSE_INULL)
-  Triage unavailable.
-code/game/g_combat.c:442:7:
-  deref_ptr: Directly dereferencing pointer "self->client".
-code/game/g_combat.c:455:6:
-  check_after_deref: Null-checking "self->client" suggests that it may be null, but it has already been dereferenced on all paths leading to the check.
-
-code/game/g_combat.c:997:4: CID (unavailable; MK=90f44a11aee1c826b91139cfba469562) (#1 of 1):
-  Type: Logically dead code (DEADCODE)
-  Triage unavailable.
-code/game/g_combat.c:834:3:
-  addr_non_null: The address of an object "&g_entities[1022]" is never null.
-code/game/g_combat.c:837:3:
-  assignment: Assigning: "attacker" = "&g_entities[1022]".
-code/game/g_combat.c:994:8:
-  notnull: At condition "attacker", the value of "attacker" cannot be "NULL".
-code/game/g_combat.c:994:3:
-  dead_error_condition: The condition "attacker" must be true.
-code/game/g_combat.c:997:4:
-  dead_error_line: Execution cannot reach this statement: "client->ps.persistant[PERS_...".
-
-code/game/g_combat.c:994:8: CID (unavailable; MK=9be3465e8678eeca4dd05194d486c67d) (#1 of 1):
-  Type: Dereference before null check (REVERSE_INULL)
-  Triage unavailable.
-code/game/g_combat.c:854:7:
-  deref_ptr: Directly dereferencing pointer "attacker".
-code/game/g_combat.c:994:8:
-  check_after_deref: Null-checking "attacker" suggests that it may be null, but it has already been dereferenced on all paths leading to the check.
-
-cov-run-desktop took 2.3 seconds.
 ```
-</details>
+If analysis summaries are present and used, `cov-run-desktop` will find an additional `FORWARD_NULL` defect that is similar to the example above. This defect cannot be found without analysis summaries, thus, the second run below only reports 3 defects.
 
 <details>
  <summary>Output with analysis summaries</summary>
@@ -176,6 +137,62 @@ code/game/g_combat.c:994:8:
   check_after_deref: Null-checking "attacker" suggests that it may be null, but it has already been dereferenced on all paths leading to the check.
 
 cov-run-desktop took 2.4 seconds.
+```
+</details>
+
+<details>
+ <summary>Output without analysis summaries</summary>
+
+```
+cov-run-desktop --disconnected --dir idir-6387c33 code/game/g_combat.c
+Coverity Desktop Analysis version 2022.9.1 on Linux 5.15.0-53-generic x86_64
+cov-run-desktop operating in disconnected mode due to user request.
+Selected 1 translation unit for analysis:
+* code/game/g_combat.c
+
+[STATUS] Parsing source files...
+[STATUS] Analyzing...
+[WARNING] The checker "ARRAY_VS_SINGLETON" was disabled because it requires summaries.
+[WARNING] The checker "CHECKED_RETURN" was disabled because it requires summaries.
+[WARNING] The checker "NULL_RETURNS" was disabled because it requires summaries.
+[WARNING] The checker "MISSING_MOVE_ASSIGNMENT" was disabled because it requires summaries.
+[WARNING] Some summaries were not available because of disconnected operation.
+Operating in single-file mode.
+This may affect results.
+
+Detected 3 defect occurrences that pass the filter criteria.
+
+code/game/g_combat.c:455:6: CID (unavailable; MK=790a8c7de09fedb2cca816716d4f3183) (#1 of 1):
+  Type: Dereference before null check (REVERSE_INULL)
+  Triage unavailable.
+code/game/g_combat.c:442:7:
+  deref_ptr: Directly dereferencing pointer "self->client".
+code/game/g_combat.c:455:6:
+  check_after_deref: Null-checking "self->client" suggests that it may be null, but it has already been dereferenced on all paths leading to the check.
+
+code/game/g_combat.c:997:4: CID (unavailable; MK=90f44a11aee1c826b91139cfba469562) (#1 of 1):
+  Type: Logically dead code (DEADCODE)
+  Triage unavailable.
+code/game/g_combat.c:834:3:
+  addr_non_null: The address of an object "&g_entities[1022]" is never null.
+code/game/g_combat.c:837:3:
+  assignment: Assigning: "attacker" = "&g_entities[1022]".
+code/game/g_combat.c:994:8:
+  notnull: At condition "attacker", the value of "attacker" cannot be "NULL".
+code/game/g_combat.c:994:3:
+  dead_error_condition: The condition "attacker" must be true.
+code/game/g_combat.c:997:4:
+  dead_error_line: Execution cannot reach this statement: "client->ps.persistant[PERS_...".
+
+code/game/g_combat.c:994:8: CID (unavailable; MK=9be3465e8678eeca4dd05194d486c67d) (#1 of 1):
+  Type: Dereference before null check (REVERSE_INULL)
+  Triage unavailable.
+code/game/g_combat.c:854:7:
+  deref_ptr: Directly dereferencing pointer "attacker".
+code/game/g_combat.c:994:8:
+  check_after_deref: Null-checking "attacker" suggests that it may be null, but it has already been dereferenced on all paths leading to the check.
+
+cov-run-desktop took 2.3 seconds.
 ```
 </details>
 
